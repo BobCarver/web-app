@@ -1,0 +1,39 @@
+{
+  "name": "web-app",
+  "version": "1.0.0",
+  "description": "sample web app",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BobCarver/web-app.git"
+  },
+  "author": "Bob Carver <bob.m.carver@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/BobCarver/web-app/issues"
+  },
+  "homepage": "https://github.com/BobCarver/web-app#readme",
+  "dependencies": {
+    "fs": "0.0.1-security",
+    "jspdf": "^1.4.1",
+    "koa": "^2.5.2",
+    "koa-bodyparser": "^4.2.1",
+    "koa-router": "^7.4.0",
+    "nodemailer": "^4.6.7",
+    "npm": "^6.2.0",
+    "pg": "^7.4.3",
+    "pg-extra": "^1.1.0"
+  },
+  "devDependencies": {
+    "chai": "^4.1.2",
+    "mocha": "^5.2.0",
+    "sinon": "^6.1.4",
+    "supertest": "^3.1.0"
+  }
+}
