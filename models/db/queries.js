@@ -110,15 +110,15 @@ module.exports = {
         SELECT ins1.payment_id, ${allocationWhiteList}  
           FROM 
             json_populate_recordset(null::allocations-'id', $1->allocations)`
-    `
+    
   }
 }
    
 invoice:
-   `insert into statements
-   select company.id, date_due, total 
-   from 
-   jobs where job.state = completed 
+   `INSERT INTO statements
+   SELECT company.id, date_due, total 
+   FROM 
+   jobs WHERE job.state = completed 
    charges,
    stops`
 

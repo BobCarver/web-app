@@ -1,17 +1,48 @@
 -- https://dba.stackexchange.com/questions/68266/what-is-the-best-way-to-store-an-email-address-in-postgresql/165923#165923
 
-CREATE DOMAIN email
-  CHECK ( value ~ '^[\w.!#$%&''*+/=?^`{|}~-]+@[:alnum:](?:[[:alnum:]-]{0,61}[:alnum:])?(?:\.[:alnum:](?:[[:alnum:]-]{0,61}[:alnum:])?)*$' );
+CREATE DOMAIN email TEXT CHECK ( value ~ '^[\w.!#$%&''*+/=?^`{|}~-]+@[:alnum:](?:[[:alnum:]-]{0,61}[:alnum:])?(?:\.[:alnum:](?:[[:alnum:]-]{0,61}[:alnum:])?)*$' );
   -- CHECK ( value ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[[a-zA-Z0-9]](?:[a-zA-Z0-9-]{0,61}[[a-zA-Z0-9]])?(?:\.[[a-zA-Z0-9]](?:[a-zA-Z0-9-]{0,61}[[a-zA-Z0-9]])?)*$' );
 
+CREATE DOMAIN phone_number TEXT CHECK( value ~ '^[0-9\(\) \-]+$')
 
 -- https://dba.stackexchange.com/questions/164796/how-do-i-store-phone-numbers-in-postgresql
 
-CREATE EXTENSION pg_libphonenumber;
+-- CREATE EXTENSION pg_libphonenumber;
+
+CREATE TABLE IF NOT EXISTS drivers(
+    id          SERIAL PRIMARY KEY,
+    first_name  TEXT NOT NULL,
+    last_name   TEXT NOT NULL,
+    phone       phone_number NOT NULL,
+    email       email NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS routes(
+    id          SERIAL PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+);
+
+CREATE TABLE IF NOT EXISTS payrolls(
+    id          SERIAL PRIMARY KEY,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+);
+
+CREATE TYPE statement_status AS ENUM ('mailed', 'received', 'payed');
 
 CREATE TYPE statement_status AS ENUM ('immediate', 'daily', 'weekly', 'biweekly', 'bimonthly', 'monthly');
 
 CREATE TYPE account_status AS ENUM ('active', 'suspended');
+
+CREATE TABLE IF NOT EXISTS locations (
+    id          SERIAL PRIMARY KEY,
+    name        TEXT,
+    address     TEXT NOT NULL,
+    verified    boolean NOT NULL DEFAULT false,
+    latitude    float NOT NULL,
+    longitude   float NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS accounts (
     id          SERIAL PRIMARY KEY,
@@ -22,17 +53,14 @@ CREATE TABLE IF NOT EXISTS accounts (
     discount    SMALLINT NOT NULL DEFAULT 0 CHECK(discount <= 100),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     update_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    balance 'money'  -- update by trigger on statements
+    balance     NUMERIC(5,2) NOT NULL DEFAULT 0,  -- update by trigger on statements WIP money
 
     status      account_status NOT NULL,
-    frequency   INTEGER NOT NULL DEFAULT 0
+    frequency   INTEGER NOT NULL DEFAULT 0 
 
---  t.integer  "users_count",             default: 0
---  t.string   "ref_pattern"
+);
 
-)
-
-CREATE TABLE users(
+CREATE IF NOT EXISTS TABLE users(
     id          SERIAL PRIMARY KEY,
     first_name  TEXT NOT NULL,
     last_name   TEXT NOT NULL,
@@ -63,50 +91,33 @@ t.datetime "created_at"
 t.datetime "updated_at"
 
 ****/
-)
-
-CREATE TABLE drivers(
-    id          SERIAL PRIMARY KEY
-    first_name  TEXT NOT NULL,
-    last_name   TEXT NOT NULL,
-    phone       phone_number NOT NULL,
-    email       email NOT NULL
-)
-
-CREATE TABLE routes(
-    id  SERIAL PRIMARY KEY
-)
-
-CREATE TABLE payroll(
-    id  SERIAL PRIMARY KEY
-)
-
-CREATE TYPE statement_status AS ENUM ('mailed', 'received', 'payed');
+);
 
 CREATE TABLE IF NOT EXISTS statements (
     id          SERIAL PRIMARY KEY,
-
-    account_id  INTEGER REFERENCES accounts(id) NOT NULL,
-    amount 'money'.
+    account_id  INTEGER REFERENCES accounts(id),
+    amount      NUMERIC(5,2) NOT NULL DEFAULT 0, -- WIP money
     status      statement_status NOT NULL, -- seems redundant
     create_at   TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     date_due    TIMESTAMPTZ NOT NULL,
-    amount_due 'money' NOT NULL  -- trigger on payment ??
 
-)
+);
 
-CREATE TRIGGER AFTER INSERT ON statements FOR EACH ROW EXECUTE PROCEDURE adjust_balance(account_id, amount)
-
-CREATE FUNCTION adjust_balance (accountno integer, amount numeric) $$
+CREATE OR REPLACE FUNCTION adjust_balance () 
+RETURNS trigger AS $$
+    BEGIN
     UPDATE accounts
-        SET balance = balance + amount
-        WHERE id = adjust_balance.accountno
-$$ LANGUAGE SQL;
+        SET balance = balance + NEW.amount
+        WHERE id = NEW.account_id
+    END
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER foo AFTER INSERT ON statements FOR EACH ROW EXECUTE PROCEDURE adjust_balance()
 
 CREATE TABLE IF NOT EXISTS payments (
-    account_id INTEGER REFERENCES accounts(id) NOT NULL,
-    amount 'money' NOT NULL,
-    balance 'money' NOT NULL,
+    id          SERIAL PRIMARY KEY,
+    account_id  INTEGER REFERENCES accounts(id) NOT NULL,
+    amount      NUMERIC(5,2) NOT NULL DEFAULT 0, -- WIP money
     created_at  TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 
 --    t.string  "reference"
@@ -114,16 +125,16 @@ CREATE TABLE IF NOT EXISTS payments (
 --    t.string  "safe_number"
 --    t.string  "payer"
 --    t.text    "params",       default: "",      null: false
-)
+);
 CREATE TRIGGER AFTER INSERT ON payment
     FOR EACH ROW
-    EXECUTE PROCEDURE adjust_balance(account_id, -amount)
+    EXECUTE PROCEDURE adjust_balance();
 
 CREATE TABLE IF NOT EXISTS allocations (
-    a_amount    'money' NOT NULL, -- what type of check ????
+    a_amount     NUMERIC(5,2) NOT NULL DEFAULT 0, -- what type of check ???? WIP money
     statement_id INTEGER REFERENCES statements(id) NOT NULL,
-    payment_id   INTEGER REFERENCES payments(id) NOT NULL,
-)
+    payment_id   INTEGER REFERENCES payments(id) NOT NULL
+);
 
 CREATE TYPE job_status AS ENUM ('submitted', 'dispatched', 'delivered','invoiced', 'canceled');
 
@@ -139,7 +150,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     notes           TEXT,
 
     attn            TEXT,
-    attnPhone       phone_number,
+--    attnPhone       phone_number,
     create_at       TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     state           job_status NOT NULL DEFAULT 'submitted'
@@ -148,13 +159,13 @@ CREATE TABLE IF NOT EXISTS jobs (
  * if we allow no account then capture
  * email, phone, cc authorization
  */
-)
+);
 
 CREATE TABLE IF NOT EXISTS charge_types(
     id              SERIAL PRIMARY KEY,
     name            TEXT,
-    amount          INTEGER
-)
+    amount          NUMERIC(5,2) NOT NULL DEFAULT 0 -- WIP money
+);
 
 CREATE TABLE IF NOT EXISTS charges (
     id              SERIAL PRIMARY KEY,
@@ -164,17 +175,8 @@ CREATE TABLE IF NOT EXISTS charges (
     job_id          INTEGER REFERENCES jobs(id) NOT NULL,
     rate            SMALLINT NOT NULL DEFAULT 60 CHECK(rate BETWEEN 0 AND 100), -- maybe by driver
     payroll_id      INTEGER REFERENCES payrolls(id),
-    kind            INTEGER REFERENCES charge_type(id)
-)
-
-CREATE TABLE IF NOT EXISTS locations (
-    id          SERIAL PRIMARY KEY,
-    name        TEXT,
-    address     TEXT NOT NULL,
-    verified    boolean NOT NULL DEFAULT false,
-    latitude    float NOT NULL,
-    longitude   float NOT NULL
-)
+    kind            INTEGER REFERENCES charge_types(id)
+);
 
 CREATE TABLE IF NOT EXISTS stops (
     id          SERIAL PRIMARY KEY,
@@ -185,33 +187,14 @@ CREATE TABLE IF NOT EXISTS stops (
     delivery_due TIMESTAMPTZ NOT NULL,
     at          TIMESTAMPTZ,
     position    integer
-)
+);
 CREATE TRIGGER
     AFTER UPDATE ON stops
     FOR EACH ROW
     WHEN OLD.at is NULL AND NEW.at IS NOT NULL
     EXECUTE PROCEDURE foo
 
-
-
-
-
-
-
-
-
 /*
-  create_table "invitations", force: :cascade do |t|
-    t.string   "email",                            null: false
-    t.string   "key"
-    t.string   "status",       default: "pending", null: false
-    t.integer  "company_id",                       null: false
-    t.integer  "requestor_id",                     null: false
-    t.datetime "expires",                          null: false
-    t.datetime "created_at"
-    t.datetime "updated_at"
-  end
-
 
   create_table "p_stops", force: :cascade do |t|
     t.string  "name",            limit: 100
