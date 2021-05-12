@@ -25,7 +25,7 @@
     "jspdf": "^1.4.1",
     "koa": "^2.5.2",
     "koa-bodyparser": "^4.2.1",
-    "nodemailer": "^4.6.7",
+    "nodemailer": "^6.4.16",
     "npm": "^7.3.0",
     "pg": "^7.4.3",
     "pg-extra": "^2.0.2"
