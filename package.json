@@ -22,7 +22,7 @@
   "dependencies": {
     "@koa/router": "^10.0.0",
     "fs": "0.0.1-security",
-    "jspdf": "^1.4.1",
+    "jspdf": "^2.5.1",
     "koa": "^2.5.2",
     "koa-bodyparser": "^4.2.1",
     "nodemailer": "^4.6.7",
